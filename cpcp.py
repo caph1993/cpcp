@@ -10,7 +10,13 @@ from html.parser import HTMLParser
 from string import ascii_uppercase
 from tempfile import NamedTemporaryFile
 from string import Formatter
-import sys, os, glob, time, re, json, io, signal, asyncio
+import sys, os, glob, time, re, json, io, signal
+import asyncio, threading, platform
+from threading import Thread
+from asyncio import ensure_future as nowait
+from concurrent.futures import ThreadPoolExecutor
+from tempfile import TemporaryDirectory
+import shutil
 import collections.abc
 
 
@@ -226,9 +232,7 @@ class CPCP(ProblemLibrary):
                 if esc: i=max(0,i-1)
                 elif key not in errors: i+=1
             self.UI.set_title(f'{self}')
-        asyncio.ensure_future(
-            self.interrupt_listener()
-        )
+        nowait(self.interrupt_listener())
         await self.main()
 
 
@@ -237,6 +241,7 @@ class CPCP(ProblemLibrary):
         self.ls_update()
         self.UI.print('Directory:', os.getcwd())
         self.ls_print()
+        self.self_updater()
         while 1:
             options = [
                 *self.commands,
@@ -273,19 +278,13 @@ class CPCP(ProblemLibrary):
             self.ls_print()
 
         elif command=='Summary':
-            asyncio.ensure_future(
-                self.run(self.ls['in'], summary=True)
-            )
+            nowait(self.run(self.ls['in'], summary=True))
 
         elif command=='Test all':
-            asyncio.ensure_future(
-                self.run(self.ls['in'], summary=False)
-            )
+            nowait(self.run(self.ls['in'], summary=False))
 
         elif command.startswith('Test '):
-            asyncio.ensure_future(
-                self.run([command[5:]], summary=False)
-            )
+            nowait(self.run([command[5:]], summary=False))
 
         elif command=='Open statement':
             self.xdg_open(self.statement)
@@ -306,7 +305,7 @@ class CPCP(ProblemLibrary):
             await self.interrupt()
 
         elif command=='Download tool':
-            #asyncio.ensure_future(self.download())
+            #nowait(self.download())
             await self.download()
 
         elif command=='New testcase':
@@ -338,6 +337,12 @@ class CPCP(ProblemLibrary):
         def wrapper(self, *args, **kwargs):
             assert self.config, 'You must select a problem first'
             return func(self, *args, **kwargs)
+        wrapper.__name__=func.__name__
+        return wrapper
+
+    def _threaded(func):
+        def wrapper(self, *args, **kwargs):
+            Thread(target=func, args=(self, *args), kwargs=kwargs).start()
         wrapper.__name__=func.__name__
         return wrapper
 
@@ -658,29 +663,82 @@ class CPCP(ProblemLibrary):
             self.create_source()
         return esc, errors
 
+    @_threaded
+    def self_updater(self):
+        self.UI.print('Checking for updates...')
+        latest = urlopen(META.releases_url)
+        latest = json.loads(latest.read().decode())
+        latest_version = latest.get('tag_name')
+        if latest_version==META.version:
+            self.UI.print('You have the latest version')
+        else:
+            self.UI.print(f'Version {latest_version} is out.')
+            url = None
+            for asset in latest.get('assets', []):
+                if asset['name']==META.bintag:
+                    url = asset['browser_download_url']
+                    size = asset['size']
+            if url==None:
+                self.UI.print('You seem to have the latest version')
+            elif META.binary:
+                resp = urlopen(url)
+                blocksize = size//15
+                self.UI.print('Downloading:')
+                self.UI.print('Total:    '+'-'*16)
+                self.UI.print('Progress: ', end='')
+                with TemporaryDirectory() as tmp:
+                    tgt = os.path.join(tmp, META.bintag)
+                    with open(tgt, 'wb') as f:
+                        for i in range(16):
+                            f.write(resp.read(blocksize))
+                            self.UI.print('.', end='')
+                    self.UI.print()
+                    try:
+                        shutil.move(tgt, META.binary)
+                    except:
+                        shutil.move(tgt, META.binary+latest_version)
+                self.UI.print('Done. Restart the app.')
+            else:
+                self.UI.print('You are in dev mode, use git pull to update')
+                self.UI.print('Latest release at', url)
+        return
 
 def main():
-    arg0, *args = sys.argv
-    here = os.path.dirname(os.path.realpath(__file__))
-    sysx = os.path.realpath(sys.executable)
-    arg0 = os.path.realpath(arg0)
-    host = here if sysx!=arg0 else os.path.dirname(arg0)
+    global META
+
+    META = Dict()
+    META.version = 'v0.0.1'
+    META.source = os.path.realpath(__file__)
+    META.srcdir = os.path.dirname(os.path.realpath(__file__))
+    META.bintag = f'CPCP-{platform.system()}-{platform.machine()}'
+    META.releases_url = 'https://api.github.com/repos/caph1993/cpcp/releases/latest'
     
-    os.chdir(host)
+    arg0, *META.args = sys.argv
+    executable = os.path.realpath(sys.executable)
+    dev = executable!=os.path.realpath(arg0)
+    if executable == os.path.realpath(arg0):
+        META.binary = executable
+        META.wdir = os.path.dirname(executable)
+    else:
+        META.binary = None # dev mode, no executable
+        META.wdir = META.srcdir
 
-    cpcp = CPCP(os.path.join(here, 'default_settings.json'))
-    mode = ('firefox-app' if not args else args[0]).lower()
+    META.mode = ('firefox-app' if not META.args else META.args[0]).lower()
+    os.chdir(META.wdir)
 
-    if mode=='cli':
-        asyncio.ensure_future(cpcp.start(app))
+    cpcp = CPCP(os.path.join(META.srcdir, 'default_settings.json'))
+    if META.mode=='cli':
+        nowait(cpcp.start(app))
     else:
         app = flx.App(MyApp)
         title = 'CPCP'
-        icon = os.path.join(here, 'icon.png')
-        GUI = app.launch(mode, title=title, icon=icon)
-        asyncio.ensure_future(cpcp.start(GUI))
+        icon = os.path.join(META.srcdir, 'icon.png')
+        GUI = app.launch(META.mode, title=title, icon=icon)
+        nowait(cpcp.start(GUI))
         #app.export('example.html', link=0)
         flx.run()
+    return
+
 
 if __name__=='__main__':
     main()
@@ -720,6 +778,7 @@ TODO:
  (OK) Organize folder structure
  (OK) Create from templates
  (OK) Open templates
+ + Make UI non async and blocking
  + Updates system
  + Plugin system (move everything to a cpcp folder)
  + Fix long labels
