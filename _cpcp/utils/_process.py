@@ -1,12 +1,13 @@
-from my_dict import Dict
-from subprocess import (Popen, PIPE, DEVNULL, TimeoutExpired, CalledProcessError)
+from ._dict import Dict
+from subprocess import (
+    Popen, PIPE, DEVNULL, TimeoutExpired,
+    CalledProcessError)
 from tempfile import NamedTemporaryFile
-from threading import Thread, Timer, Event
+from threading import Thread, Timer
 from queue import Queue, Empty
-import sys, time, io, signal, asyncio
+import sys, time, io, asyncio, threading
 
 ON_POSIX = 'posix' in sys.builtin_module_names
-
 
 
 class MyProcess():
@@ -74,8 +75,14 @@ class MyProcess():
         self.kwargs.update(kwargs)
         self._start()
         try:
-            self._sync.wait()
+            #self._sync.wait() was here before but
+            #the loop is needed for quick handling of
+            #terminate_thread(thread, KeyboardInterrupt)
+            while not self._sync.is_set():
+                time.sleep(1e-4)
         except KeyboardInterrupt:
+            self._stop = True
+            self._process.kill()
             self._error = 'KeyboardInterrupt'
         except Exception as e:
             self._error = str(e)
@@ -126,8 +133,9 @@ class MyProcess():
         self._timeout_stderr=self._parse_time(self.kwargs.timeout_stderr, float('inf'))
         self._threads={}
         self._check=self.kwargs.check
-        self._sync=Event()
-        self._async=asyncio.Event()
+        self._sync=threading.Event()
+        try: self._async=asyncio.Event()
+        except RuntimeError: self._async=None
 
         self._threads['waiter'] = Thread(target=self._waiter)
         if self._timeout:
@@ -165,7 +173,7 @@ class MyProcess():
             self._stop=True
             self._done=True
             self._sync.set()
-            self._async.set()
+            if self._async: self._async.set()
             self.error=str(e)
             if self.kwargs.check:
                 raise
@@ -238,7 +246,7 @@ class MyProcess():
         finally:
             self._done=True
             self._sync.set()
-            self._async.set()
+            if self._async: self._async.set()
         return
 
     def _terminate(self):
@@ -293,13 +301,13 @@ class MyProcess():
     def is_active(self):
         return self._done==False
 
-    async def kill(self):
+    def kill(self):
         if self.is_active():
             self._stop = True
             self._error = 'KilledByUser'
         self._process.kill()
         while not self._done:
-            await asyncio.sleep(1e-3)
+            time.sleep(1e-3)
 
 
 class CustomOStream(io.BufferedWriter):

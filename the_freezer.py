@@ -55,7 +55,7 @@ create_executable(
     exec_name='CPCP',
     js_modules=[
         'flexx',
-        'my_flexx_widgets',
-        'my_flexx_app',
+        '_cpcp.widgets',
+        '_cpcp.app',
     ],
 )

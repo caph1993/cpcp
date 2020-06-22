@@ -1,0 +1,5 @@
+{
+  "problem": {
+    "dir": "my_{problem.platform}/{problem.id}"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "codeforces": {
+    "platform": "codeforces",
+    "id": "{contest}{problem}",
+    "id_parser": {
+      "contest": "[0-9]+",
+      "problem": "[A-Z]"
+    },
+    "url": "http://codeforces.com/contest/{contest}/problem/{problem}"
+  },
+  "codejam": {
+    "platform": "codejam",
+    "id": "{year}{round}{problem}",
+    "source": "{path}/solution.{extension}",
+    "id_parser": {
+      "year": "[0-9]+",
+      "round": "QR|RA|RB|RC|R2|R3|WF",
+      "problem": "[1-9]"
+    }
+  },
+  "uva": {
+    "platform": "uva",
+    "id": "{group}{number}",
+    "statement": "{path}/{id}.html",
+    "id_parser": {
+      "group": "[0-9]+(?=\\d)",
+      "number": "[0-9][0-9]"
+    },
+    "url": "http://uva.onlinejudge.org/external/{group}/{id}.pdf"
+  },
+  "icpc_live": {
+    "platform": "icpc_live",
+    "id": "{group}{number}",
+    "statement": "{path}/{id}.html",
+    "id_parser": {
+      "group": "[0-9]+(?=\\d)",
+      "number": "[0-9][0-9]"
+    },
+    "url": "https://icpcarchive.ecs.baylor.edu/external/{group}/{id}.pdf"
+  }
+}

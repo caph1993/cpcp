@@ -88,11 +88,17 @@ class MyPrompt(MyWidget):
             await self.sleep(50)
         elem.node.focus()
         return
+    
+    async def select_text(self):
+        await self.sleep(50)
+        self.winput.node.select()
+        return
 
     @flx.action
     def set_properties(self, kwargs):
         if 'prefill' in kwargs:
             self.winput.set_text(kwargs.pop('prefill'))
+            self.select_text()
         if 'placeholder' in kwargs:
             self.winput.set_placeholder_text(kwargs.pop('placeholder'))
         for key in ['above']:

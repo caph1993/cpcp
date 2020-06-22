@@ -1,6 +1,6 @@
 import readline, sys, os
 
-class TerminalUI():
+class MyCLI():
 
     def clear(self):
         os.system('cls' if os.name=='nt' else 'clear')
