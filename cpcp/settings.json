@@ -1,5 +1,102 @@
 {
+  "dirtree": {
+    "base_path": ".",
+    "path": "{base_path}/{platform}/{id}",
+    "source": "{path}/{id}.{extension}",
+    "sample": "{path}/sample{num}.{in_or_out}",
+    "custom": "{path}/custom{num}.{in_or_out}",
+    "statement": "{path}/statement.html",
+    "templates_path": "templates",
+    "template": "{templates_path}/{language}.{extension}"
+  },
+  "default_problem": {
+    "language": "pypy3",
+    "platform": "codeforces",
+    "problem_id": "1234A",
+    "time_limit": null,
+    "max_output": "500M"
+  },
+  "languages": {
+    "pypy3": {
+      "language": "pypy3",
+      "extension": "py",
+      "compiler": "python3 -m py_compile {source} && rm -r {path}/__pycache__",
+      "executer": "pypy3 {source}"
+    },
+    "python3": {
+      "language": "python3",
+      "extension": "py",
+      "compiler": "python3 -m py_compile {source} && rm -r {path}/__pycache__",
+      "executer": "python3 {source}"
+    },
+    "c++11": {
+      "language": "c++11",
+      "extension": "cpp",
+      "compiler": "g++ -std=c++11 -o {tmp_program} {source}",
+      "executer": "{tmp_program}"
+    },
+    "c++5": {
+      "language": "c++5",
+      "extension": "cpp",
+      "compiler": "g++ -o {tmp_program} {source}",
+      "executer": "{tmp_program}"
+    },
+    "kotlin": {
+      "language": "kotlin",
+      "extension": "kt",
+      "compiler": "kotlinc {source} -include-runtime -d {tmp_program}.jar",
+      "executer": "java -jar {tmp_program}.jar"
+    }
+  },
+  "platforms": {
+    "codeforces": {
+      "platform": "codeforces",
+      "id": "{contest}{problem}",
+      "id_parser": {
+        "contest": "[0-9]+",
+        "problem": "[A-Z]"
+      },
+      "url": "http://codeforces.com/contest/{contest}/problem/{problem}"
+    },
+    "codejam": {
+      "platform": "codejam",
+      "id": "{year}{round}{problem}",
+      "source": "{path}/solution.{extension}",
+      "id_parser": {
+        "year": "[0-9]+",
+        "round": "QR|RA|RB|RC|R2|R3|WF",
+        "problem": "[1-9]"
+      }
+    },
+    "uva": {
+      "platform": "uva",
+      "id": "{group}{number}",
+      "statement": "{path}/{id}.html",
+      "id_parser": {
+        "group": "[0-9]+(?=\\d)",
+        "number": "[0-9][0-9]"
+      },
+      "url": "http://uva.onlinejudge.org/external/{group}/{id}.pdf"
+    },
+    "icpc_live": {
+      "platform": "icpc_live",
+      "id": "{group}{number}",
+      "statement": "{path}/{id}.html",
+      "id_parser": {
+        "group": "[0-9]+(?=\\d)",
+        "number": "[0-9][0-9]"
+      },
+      "url": "https://icpcarchive.ecs.baylor.edu/external/{group}/{id}.pdf"
+    }
+  },
   "problem": {
     "dir": "my_{problem.platform}/{problem.id}"
+  },
+  "current_problem": {
+    "language": "pypy3",
+    "platform": "codeforces",
+    "problem_id": "1234A",
+    "time_limit": null,
+    "max_output": "500M"
   }
 }

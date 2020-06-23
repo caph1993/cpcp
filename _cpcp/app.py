@@ -12,7 +12,9 @@ class MyApp_JS(MyWidget):
     def init(self):
         super().init()
         with flx.VBox():
-            self.wtitle = flx.Label()
+            with flx.HBox():
+                self.wtitle = flx.Label(flex=1)
+                self.wversion = flx.Label(text='v0.0.0')
             self.wprompt = MyPrompt()
             self.wconsole = MyConsole(flex=1)
         self._init_focus()
@@ -43,6 +45,9 @@ class MyApp_JS(MyWidget):
     @flx.emitter
     def emit_interrupt(self, event):
         return event
+    @flx.emitter
+    def emit_version(self, event):
+        return event
 
     @flx.reaction('wprompt.emit_option', mode='greedy')
     def listen_option(self, *events):
@@ -56,6 +61,9 @@ class MyApp_JS(MyWidget):
     @flx.reaction('wprompt.emit_interrupt', mode='greedy')
     def listen_interrupt(self, *events):
         return self.emit_interrupt(events[-1])
+    @flx.reaction('wversion.pointer_click', mode='greedy')
+    def listen_version(self, *events):
+        return self.emit_version(events[-1])
 
     @flx.action
     def set_focus(self):
@@ -76,6 +84,10 @@ class MyApp_JS(MyWidget):
     def set_title(self, text):
         if self.ready:
             self.wtitle.set_text(text)
+    @flx.action
+    def set_version(self, text):
+        if self.ready:
+            self.wversion.set_text(text)
 
 
 class MyApp(flx.PyComponent):
@@ -84,6 +96,7 @@ class MyApp(flx.PyComponent):
         self.ready = False
         self.js = MyApp_JS()
         self._interrupt = threading.Event()
+        self._version = threading.Event()
         self.term = flx.Dict(fifo=MyFIFO(), size=0, max_size=10**5)
         self.prompts = flx.Dict(fifo=MyFIFO(), ans=MyFIFO(), results={})
         self.actions = MyFIFO()
@@ -109,6 +122,11 @@ class MyApp(flx.PyComponent):
         self.js.set_title(title)
     def set_title(self, title):
         self.actions.push_fn(self._set_title, title)
+    @flx.action
+    def _set_version(self, text):
+        self.js.set_version(text)
+    def set_version(self, text):
+        self.actions.push_fn(self._set_version, text)
 
     @flx.reaction('js.emit_escape', mode='greedy')
     def listen_escape(self, *events):
@@ -121,6 +139,10 @@ class MyApp(flx.PyComponent):
     @flx.reaction('js.emit_interrupt', mode='greedy')
     def listen_interrupt(self, *events):
         self._interrupt.set()
+
+    @flx.reaction('js.emit_version', mode='greedy')
+    def listen_version(self, *events):
+        self._version.set()
 
     def print(self, *args, end='\n', flush=None):
         self.write(' '.join(str(x) for x in args))

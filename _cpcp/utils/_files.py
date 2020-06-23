@@ -1,5 +1,5 @@
 from tempfile import NamedTemporaryFile
-import re, json, shutil
+import re, json, shutil, os
 
 
 def read_file(fname):
@@ -24,4 +24,11 @@ def save_json(fname, obj, indent=2):
     with open(tmp, 'w') as f:
         json.dump(obj, f, indent=indent)
     shutil.move(tmp, fname)
-    return 
+    return
+
+def mkdir(*path):
+    path = os.path.join(*path)
+    if not os.path.exists(path):
+        run(['mkdir', '-p', path], check=True)
+    assert os.path.is_directory(path)
+    return

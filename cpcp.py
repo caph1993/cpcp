@@ -8,7 +8,9 @@ from _cpcp.app import MyApp
 from _cpcp.app import MyApp
 from _cpcp.downloader import Downloader
 from _cpcp.problem_library import ProblemLibrary
-
+from _cpcp.version_manager import (
+    version_main, version_init)
+from subprocess import Popen
 from webruntime.util.icon import Icon
 from subprocess import run, PIPE, DEVNULL
 from string import ascii_uppercase
@@ -40,14 +42,17 @@ class CPCP():
         'Open templates',
         'Open problem folder',
         'New testcase',
-        'Interrupt',
     ]
 
     def main(self, UI):
         UI.wait_ready()
         self.UI = UI
         self.lib = ProblemLibrary()
-
+        self.create_path(os.path.join('cpcp', 'cache'))
+        t = Thread(target=version_main, args=[
+            self.UI, META])
+        t.setDaemon(True)
+        t.start()
         self.change_problem(escape=False)
 
         self.ls_update()
@@ -80,7 +85,9 @@ class CPCP():
             problem = {k:problem[k] for k in keys}
         else:
             problem = {k:'' for k in keys}
-        cache = load_json('cpcp/cache.json', {})
+
+        pcache = os.path.join('cpcp', 'cache', 'problem.json')
+        cache = load_json(pcache, {})
         problem.update(cache)
         while 0<=i<=3:
             self.UI.set_title('{language} {platform} {id}'.format(**problem))
@@ -120,13 +127,11 @@ class CPCP():
                     x = ''
             if x==None: i-=1
             else: i+=1
-            if i<0 and not escape:
-                i=0
-        save_json('cpcp/cache.json', problem)
+            if i<0 and not escape: i=0
+        save_json(pcache, problem)
         self.UI.set_title('{language} {platform} {id}'.format(**problem))
         self.UI.print(self.lib)
         return
-
 
     def handle(self, command):
         if command=='Quit':
@@ -413,27 +418,32 @@ def main():
     global META
 
     META = Dict()
-    META.version = 'v0.0.0'
+    META.version = 'v0.0.x'
     META.source = os.path.realpath(__file__)
     META.srcdir = os.path.dirname(os.path.realpath(__file__))
-    META.bintag = f'CPCP-{platform.system()}-{platform.machine()}'
+    META.exetag = f'CPCP-{platform.system()}-{platform.machine()}'
     META.releases_url = 'https://api.github.com/repos/caph1993/cpcp/releases/latest'
     
-    arg0, *META.args = sys.argv
+    arg0, *args = sys.argv
+    META.mode = args[0] if args else 'firefox-app'
+    META.args = args[1:]
     executable = os.path.realpath(sys.executable)
     dev = executable!=os.path.realpath(arg0)
     if executable == os.path.realpath(arg0):
-        META.binary = executable
+        META.exe = executable
         META.wdir = os.path.dirname(executable)
     else:
-        META.binary = None # dev mode, no executable
+        META.exe = None # dev mode, no executable
         META.wdir = META.srcdir
 
-    META.mode = ('firefox-app' if not META.args else META.args[0]).lower()
     os.chdir(META.wdir)
 
+    version_init(META.version, META.exe)
+
     cpcp = CPCP()
-    if META.mode=='cli':
+    if META.mode.startswith('--update-step='):
+        update_step(int(META.mode[14:]), *META.args)
+    elif META.mode=='cli':
         cpp.main(MyCLI())
     else:
         app = flx.App(MyApp)
@@ -444,6 +454,7 @@ def main():
         t.setDaemon(True)
         t.start()
         flx.run()
+        sys.exit(0)
     return
 
 
@@ -482,12 +493,13 @@ TODO:
  (OK) Download with confirmation dialogs
  (OK) Create settings file
  (OK) Set root path in settings or handle it
- (OK) Organize folder structure
+ (OK) Organize folder structure|
  (OK) Create from templates
  (OK) Open templates
  (OK) Make UI non async and blocking
  (OK) Plugin system (move everything to a cpcp folder)
  + Updates system
+ + Autodestroy old versions
  + Reorganize Problem attributes
  + Fix long labels
  + let cpp match c++

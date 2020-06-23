@@ -51,7 +51,7 @@ create_executable(
     '--exclude-module=numpy', # Custom numpy exclusion
     '--icon=favicon.ico',
     '--add-data=icon.png:.',
-    '--add-data=default_settings.json:.',
+    '--add-data=settings.json:.',
     exec_name='CPCP',
     js_modules=[
         'flexx',

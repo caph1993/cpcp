@@ -52,7 +52,8 @@ class MyPrompt(MyWidget):
         super().init()
         self.label = {}
         with flx.VBox() as self.wmain:
-            self.label['above'] = flx.Label(text='Text above')
+            self.label['above'] = flx.Label(
+                text='Text above', flex=1)
             with flx.HBox():
                 self.winput = MyLineEdit(flex=1)
             with flx.VBox():
