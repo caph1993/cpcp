@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 from threading import Thread, Timer
 from queue import Queue, Empty
 import sys, time, io, asyncio, threading
+from ._interrupt import terminate_thread
 
 ON_POSIX = 'posix' in sys.builtin_module_names
 
@@ -74,6 +75,8 @@ class MyProcess():
         kwargs.pop('self')
         self.kwargs.update(kwargs)
         self._start()
+        interrupt = Thread(target=self._kill,
+            args=['KeyboardInterrupt'])
         try:
             #self._sync.wait() was here before but
             #the loop is needed for quick handling of
@@ -81,15 +84,18 @@ class MyProcess():
             while not self._sync.is_set():
                 time.sleep(1e-4)
         except KeyboardInterrupt:
-            self._stop = True
-            self._process.kill()
-            self._error = 'KeyboardInterrupt'
+            interrupt.start()
         except Exception as e:
             self._error = str(e)
-        self._sync.wait()
-        if check and self.error:
-            kw = dict(returncode=self.returncode, cmd=self.kwargs.args)
-            raise CalledProcessError(**kw)
+        while 1:
+            try:
+                self._sync.wait()
+                if check and self.error:
+                    kw = dict(returncode=self.returncode, cmd=self.kwargs.args)
+                    raise CalledProcessError(**kw)
+                break
+            except KeyboardInterrupt:
+                pass
         return self
 
     async def async_run(self, input=None, timeout=None, check=False,
@@ -139,7 +145,8 @@ class MyProcess():
 
         self._threads['waiter'] = Thread(target=self._waiter)
         if self._timeout:
-            self._threads['timer'] = Timer(self._timeout, self._terminate)
+            self._threads['timer'] = Timer(self._timeout,
+                self._kill, args=['TimeoutExpired'])
 
         config = {
             'out': {
@@ -211,6 +218,14 @@ class MyProcess():
             t.start()
         return
 
+    def _silent_interrupt(func):
+        def wrapper(self, *args, **kwargs):
+            try: func(self, *args, **kwargs)
+            except KeyboardInterrupt: pass
+            return
+        wrapper.__name__=func.__name__
+        return wrapper
+
     def _waiter(self):
         try:
             while not self._stop:
@@ -249,13 +264,28 @@ class MyProcess():
             if self._async: self._async.set()
         return
 
-    def _terminate(self):
-        self._threads['timer'].cancel()
-        self._process.kill()
-        self._stop = True
-        self.error = 'TimeoutExpired'
+    def kill(self):
+        self._kill('KilledByUser')
+        while not self._done:
+            time.sleep(1e-3)
         return
 
+    def _kill(self, error):
+        if self.is_active():
+            self._error = error
+        if 'timer' in self._threads:
+            self._threads['timer'].cancel()
+        self._stop = True
+        self._process.kill()
+        for k,t in self._threads.items():
+            if k!='waiter' and k!='timer':
+                terminate_thread(t, KeyboardInterrupt)
+        for k,t in self._threads.items():
+            if k!='waiter' and k!='timer':
+                t.join()
+
+
+    @_silent_interrupt
     def _non_blocking_reader(self, istream, queues, max_size):
         #https://stackoverflow.com/a/4896288/3671939
         for line in iter(istream.readline, b''):
@@ -268,6 +298,7 @@ class MyProcess():
             for q in queues: q.put(line)
         return istream.close()
 
+    @_silent_interrupt
     def _live_handler(self, queue, ostream, flush, wait):
         waiting = False
         waiting_start = None
@@ -300,14 +331,6 @@ class MyProcess():
     
     def is_active(self):
         return self._done==False
-
-    def kill(self):
-        if self.is_active():
-            self._stop = True
-            self._error = 'KilledByUser'
-        self._process.kill()
-        while not self._done:
-            time.sleep(1e-3)
 
 
 class CustomOStream(io.BufferedWriter):

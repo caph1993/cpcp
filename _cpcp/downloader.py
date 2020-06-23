@@ -20,7 +20,7 @@ class Downloader:
             tool = platform.name
         else:
             tool = 'fallback'
-        UI.print(f'\nUsing {tool} downloader...')
+        UI.print(f'\nUsing {tool} downloader... (ctrl+c to interrupt)')
         UI.print('-'*15+'\n')
         plugin = self.plugins[tool]
         try:

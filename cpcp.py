@@ -52,10 +52,6 @@ class CPCP():
         self.UI = UI
         self.lib = ProblemLibrary()
         self.UI.print(f'\nRoot: {os.getcwd()}')
-        t = Thread(target=version_main, args=[
-            self.UI, META])
-        t.setDaemon(True)
-        t.start()
         self.change_problem(escape=False)
 
         self.limits = Dict(time_limit=10,
@@ -231,13 +227,13 @@ class CPCP():
             t = Thread(target=f, args=(shared,self,args,kwargs))
             self.UI._interrupt.clear()
             t.start()
-            while not shared['done'] and not self.UI._interrupt.is_set():
+            while not shared['done']:
                 time.sleep(1e-3)
-            if not shared['done']:
-                self.UI.print('Terminating...')
-                terminate_thread(t, KeyboardInterrupt)
-                t.join()
-                self.UI.print('Terinated')
+                if self.UI._interrupt.is_set():
+                    self.UI.print('Keyboard interruption...')
+                    terminate_thread(t, KeyboardInterrupt)
+                    self.UI._interrupt.clear()
+            t.join()
             return shared['ret']
         wrapper.__name__=func.__name__
         return wrapper
@@ -422,12 +418,9 @@ class CPCP():
         return exists
 
 
-
 def main():
-    global META
-
     META = Dict()
-    META.version = 'v0.0.7'
+    META.version = 'v1.1.0'
     META.source = os.path.realpath(__file__)
     META.srcdir = os.path.dirname(os.path.realpath(__file__))
     META.exetag = f'CPCP-{platform.system()}-{platform.machine()}'
@@ -462,6 +455,9 @@ def main():
         icon = os.path.join(META.srcdir, icon)
         UI = app.launch(META.mode, title=title, icon=icon)
         t = Thread(target=cpcp.main, args=[UI])
+        t.setDaemon(True)
+        t.start()
+        t = Thread(target=version_main, args=[UI, META])
         t.setDaemon(True)
         t.start()
         flx.run()
