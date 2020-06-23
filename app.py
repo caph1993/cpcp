@@ -1,10 +1,10 @@
 from flexx import flx
-from .widgets import MyWidget, MyPrompt, MyConsole
+from widgets import MyWidget, MyPrompt, MyConsole
 from collections import deque
 import asyncio, sys, threading, time
 from pynput.keyboard import Key, Controller # For document focus on creation
-from .utils._dict import Dict
-from .utils._fifo import MyFIFO
+from _cpcp.utils._dict import Dict
+from _cpcp.utils._fifo import MyFIFO
 
 class MyApp_JS(MyWidget):
     ready = flx.BoolProp(False)

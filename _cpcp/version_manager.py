@@ -9,22 +9,34 @@ from _thread import interrupt_main
 VER = os.path.join('cpcp','cache','version.json')
 ON_POSIX = 'posix' in sys.builtin_module_names
 
+def _restart(new_exe):
+    if ON_POSIX:
+        run(['chmod', '+x', new_exe], check=True)
+    Popen([new_exe])
+    interrupt_main()
+    return
+
 
 def version_init(version, exe):
     x = load_json(VER, {})
-    if exe:
-        if version not in x:
-            x[version] = exe
-    if not x:
+    x = {v:e for v,e in x.items() if os.path.isfile(e)}
+    save_json(VER, x)
+    if not exe: # Dev mode. Restart disabled
         return
+    x[version] = exe
     latest = max(x.keys(), key=split_numbers)
     latest_exe = x[latest]
-    assert latest==version, f'Outdated. Run {latest_exe}'
-    for v, e in x.items():
-        if v!=latest and e!=latest_exe:
-            try: os.remove(e)
-            except: pass
-    save_json(VER, x)
+    if latest!=version and exe!=latest_exe:
+        print('Restarting to new version')
+        _restart(latest_exe)
+    else:
+        print('Running latest local version')
+        for v, e in x.items():
+            if v!=latest and e!=latest_exe:
+                try: os.remove(e)
+                except: pass
+        x = {v:e for v,e in x.items() if os.path.isfile(e)}
+        save_json(VER, x)
     return
 
 
@@ -57,7 +69,7 @@ def version_main(UI, META):
             UI.print('You have the latest version of this software already.')
         else:
             fname=f'CPCP-{v1}-{exetag}'
-            new_exe = os.path.join('cpcp', fname)
+            new_exe = os.path.join('.', fname)
             UI.set_version(f'{v0} (updating...)')
             with TemporaryDirectory() as tmp:
                 tmp_exe = os.path.join(tmp, fname)
@@ -73,11 +85,9 @@ def version_main(UI, META):
                     UI.print(f'Latest version downloaded')
                     shutil.move(tmp_exe, new_exe)
             UI.print('App will restart soon...')
-            if ON_POSIX:
-                run(['chmod', '+x', new_exe], check=True)
-            Popen([new_exe])
-            interrupt_main()
+            _restart(new_exe)
     return
+
 
 
 def _get_latest_version(releases_url, binary_tag):

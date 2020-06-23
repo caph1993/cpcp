@@ -49,13 +49,14 @@ create_executable(
     app_main,
     '--hidden-import=pkg_resources.py2_warn', # BUG between pyinstaller and setuptools
     '--exclude-module=numpy', # Custom numpy exclusion
-    '--icon=favicon.ico',
-    '--add-data=icon.png:.',
-    '--add-data=settings.json:.',
+    '--icon=_cpcp/icon.png',
+    '--add-data=_cpcp/icon.png:_cpcp',
+    '--add-data=_cpcp/settings.json:_cpcp',
+    '--add-data=_cpcp/initial_userdir:_cpcp/initial_userdir',
     exec_name='CPCP',
     js_modules=[
         'flexx',
-        '_cpcp.widgets',
-        '_cpcp.app',
+        'widgets',
+        'app',
     ],
 )

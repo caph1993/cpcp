@@ -1,5 +1,6 @@
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 import re, json, shutil, os
+from subprocess import run
 
 
 def read_file(fname):
@@ -18,17 +19,21 @@ def load_json(fname, on_error=None, check=False):
         if check: raise
     return obj
 
-def save_json(fname, obj, indent=2):
-    with NamedTemporaryFile(suffix='.json') as x:
-        tmp = x.name
-    with open(tmp, 'w') as f:
-        json.dump(obj, f, indent=indent)
-    shutil.move(tmp, fname)
+def save_json(path, obj, indent=2):
+    folder, fname = os.path.split(path)
+    with TemporaryDirectory() as tmp:
+        tmp_file = os.path.join(tmp, fname)
+        with open(tmp_file, 'w') as f:
+            json.dump(obj, f, indent=indent)
+        if os.path.exists(path):
+            os.remove(path)
+        mkdir(folder)
+        shutil.move(tmp_file, path)
     return
 
 def mkdir(*path):
     path = os.path.join(*path)
     if not os.path.exists(path):
         run(['mkdir', '-p', path], check=True)
-    assert os.path.is_directory(path)
+    assert os.path.isdir(path)
     return

@@ -1,15 +1,15 @@
 from flexx import flx
+from app import MyApp
 from _cpcp.utils._process import MyProcess
 from _cpcp.utils._dict import Dict
 from _cpcp.utils._interrupt import terminate_thread
 from _cpcp.utils._files import load_json, save_json
 from _cpcp.cli import MyCLI
-from _cpcp.app import MyApp
-from _cpcp.app import MyApp
-from _cpcp.downloader import Downloader
 from _cpcp.problem_library import ProblemLibrary
 from _cpcp.version_manager import (
     version_main, version_init)
+from _cpcp.downloader import Downloader
+from _cpcp.userdir import init_userdir
 from subprocess import Popen
 from webruntime.util.icon import Icon
 from subprocess import run, PIPE, DEVNULL
@@ -48,7 +48,6 @@ class CPCP():
         UI.wait_ready()
         self.UI = UI
         self.lib = ProblemLibrary()
-        self.create_path(os.path.join('cpcp', 'cache'))
         t = Thread(target=version_main, args=[
             self.UI, META])
         t.setDaemon(True)
@@ -418,7 +417,7 @@ def main():
     global META
 
     META = Dict()
-    META.version = 'v0.0.x'
+    META.version = 'v0.0.7'
     META.source = os.path.realpath(__file__)
     META.srcdir = os.path.dirname(os.path.realpath(__file__))
     META.exetag = f'CPCP-{platform.system()}-{platform.machine()}'
@@ -438,6 +437,7 @@ def main():
 
     os.chdir(META.wdir)
 
+    init_userdir(META.srcdir)
     version_init(META.version, META.exe)
 
     cpcp = CPCP()
@@ -448,7 +448,8 @@ def main():
     else:
         app = flx.App(MyApp)
         title = 'CPCP'
-        icon = os.path.join(META.srcdir, 'icon.png')
+        icon = os.path.join('_cpcp', 'icon.png')
+        icon = os.path.join(META.srcdir, icon)
         UI = app.launch(META.mode, title=title, icon=icon)
         t = Thread(target=cpcp.main, args=[UI])
         t.setDaemon(True)

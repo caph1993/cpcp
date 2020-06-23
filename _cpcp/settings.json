@@ -42,6 +42,17 @@
     "codeforces": {
       "re_parser": "(?P<contest>[0-9]+)(?P<letter>[A-Z]+)",
       "url": "http://codeforces.com/contest/{platform.contest}/problem/{platform.letter}"
+    },
+    "codejam": {
+      "re_parser": "(?P<year>[0-9]+)(?P<round>QR|RA|RB|RC|R2|R3|WF)(?P<problem>[1-9])",
+    },
+    "uva": {
+      "re_parser": "(?P<group>[0-9]+(?=\\d))(?P<number>[0-9][0-9])",
+      "url": "http://uva.onlinejudge.org/external/{platform.group}/{platform.id}.pdf"
+    },
+    "icpc_live": {
+      "re_parser": "(?P<group>[0-9]+(?=\\d))(?P<number>[0-9][0-9])",
+      "url": "https://icpcarchive.ecs.baylor.edu/external/{platform.group}/{platform.id}.pdf"
     }
   }
 }
