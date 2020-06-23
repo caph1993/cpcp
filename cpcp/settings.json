@@ -3,9 +3,6 @@
   "templates_dir": "{root}/cpcp/templates",
   "template": "{templates_dir}/{problem.language}.{language.ext}",
   "problem": {
-    "language": "?",
-    "platform": "?",
-    "id": "?",
     "dir": "{root}/{problem.platform}/{problem.id}",
     "source": "{problem.dir}/{problem.id}.{language.ext}",
     "statement": "{problem.dir}/statement.html",
@@ -20,7 +17,7 @@
     },
     "python3": {
       "ext": "py",
-      "compiler": "python3 -c \"import ast;ast.parse(open('{problem.source}').read())\"",
+      "compiler": "python3 -m py_compile {problem.source} && rm -r {problem.dir}/__pycache__",
       "executer": "python3 {problem.source}"
     },
     "c++11": {

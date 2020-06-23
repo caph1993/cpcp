@@ -3,7 +3,9 @@ from app import MyApp
 from _cpcp.utils._process import MyProcess
 from _cpcp.utils._dict import Dict
 from _cpcp.utils._interrupt import terminate_thread
-from _cpcp.utils._files import load_json, save_json
+from _cpcp.utils._string import split_numbers
+from _cpcp.utils._files import (load_json, save_json,
+    mkdir, sys_open)
 from _cpcp.cli import MyCLI
 from _cpcp.problem_library import ProblemLibrary
 from _cpcp.version_manager import (
@@ -22,6 +24,7 @@ from threading import Thread
 from asyncio import ensure_future as nowait
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import TemporaryDirectory
+from _thread import interrupt_main
 import shutil
 
 
@@ -48,23 +51,23 @@ class CPCP():
         UI.wait_ready()
         self.UI = UI
         self.lib = ProblemLibrary()
+        self.UI.print(f'\nRoot: {os.getcwd()}')
         t = Thread(target=version_main, args=[
             self.UI, META])
         t.setDaemon(True)
         t.start()
         self.change_problem(escape=False)
 
-        self.ls_update()
-        self.UI.print('Directory:', os.getcwd())
-        self.ls_print()
-        #self.self_updater()
+        self.limits = Dict(time_limit=10,
+            max_output='50M')
+
         while 1:
             options = [
                 *self.commands,
                 *[f'Test {f}' for f in self.ls['in']],
                 *[f'Open {f}' for f in sum(self.ls.values(), [])],
             ]
-            command = self.UI.prompt(
+            command = self.UI.choice(
                 message=None,
                 options=options,
                 placeholder='Type your command...',
@@ -91,7 +94,7 @@ class CPCP():
         while 0<=i<=3:
             self.UI.set_title('{language} {platform} {id}'.format(**problem))
             if i==0:
-                x = self.UI.prompt(
+                x = self.UI.choice(
                     message='Choose a language',
                     placeholder='Type...',
                     prefill=problem['language'],
@@ -100,7 +103,7 @@ class CPCP():
                 if x!=None:
                     problem['language'] = x
             elif i==1:
-                x = self.UI.prompt(
+                x = self.UI.choice(
                     message='Choose a platform',
                     placeholder='Type...',
                     prefill=problem['platform'],
@@ -109,7 +112,7 @@ class CPCP():
                 if x!=None:
                     problem['platform'] = x
             elif i==2:
-                x = self.UI.get_input(
+                x = self.UI.prompt(
                     message=f'Type the problem id',
                     prefill=problem['id'],
                     placeholder='Type...',
@@ -129,7 +132,26 @@ class CPCP():
             if i<0 and not escape: i=0
         save_json(pcache, problem)
         self.UI.set_title('{language} {platform} {id}'.format(**problem))
-        self.UI.print(self.lib)
+        self.UI.clear()
+        self.create_source()
+        self.ls_update()
+        self.ls_print(clear=False)
+        return
+
+    def create_source(self, overwrite=False):
+        mkdir(self.lib.problem.dir)
+        source = self.lib.problem.source
+        template = self.lib.template
+        self.UI.print(f'Creating {source} from template:')
+        if os.path.exists(source) and os.path.getsize(source)>0:
+            self.UI.print('    Skipping. File already exists.')
+        elif os.path.exists(template):
+            self.UI.print(f'    Copying {template}')
+            MyProcess(['cp', template, source]).run()
+            self.UI.print('Done')
+        else:
+            self.UI.print(f'    Setting empty file: template not found {template}')
+            MyProcess(['touch', source]).run()
         return
 
     def handle(self, command):
@@ -150,36 +172,40 @@ class CPCP():
             self.run([command[5:]], summary=False)
 
         elif command=='Open statement':
-            self.xdg_open(self.lib.problem.statement)
+            sys_open(self.lib.problem.statement)
 
         elif command=='Open problem folder':
-            self.xdg_open(self.lib.problem.dir)
+            sys_open(self.lib.problem.dir)
 
         elif command=='Open source code':
-            self.xdg_open(self.lib.problem.source, touch=True)
+            sys_open(self.lib.problem.source, create=True)
             
         elif command=='Open templates':
-            #await self.open_templates()
-            self.UI.print('Not ready')
+            self.open_templates()
 
         elif command.startswith('Open '):
-            self.xdg_open(command[5:])
+            sys_open(command[5:])
 
         elif command=='Download tool':
             self.download()
+            self.ls_update()
+            self.ls_print(clear=False)
 
         elif command=='New testcase':
-            #await self.new_testcase()
-            self.UI.print('Not ready')
+            self.new_testcase()
+            self.ls_update()
+            self.ls_print(clear=False)
             
         elif command=='Delete empty testcases':
             self.ls_delete_empty()
+            self.ls_update()
+            self.ls_print(clear=False)
 
         elif command=='Change problem':
             self.change_problem(escape=True)
 
         elif command=='Settings':
-            self.xdg_open('cpcp/settings.json')
+            sys_open('cpcp/settings.json')
             
         elif command=='Create source from template':
             self.create_source()
@@ -216,14 +242,14 @@ class CPCP():
         wrapper.__name__=func.__name__
         return wrapper
 
-    def execute(self, sample_in, sample_out, tmp_program=None, verbose=True):
-        assert tmp_program or not self.compiler, 'You must compile first'
-        cmd_exec = self.format(self.executer, tmp_program=tmp_program)
+    def execute(self, sample_in, sample_out, tmp_exe=None, verbose=True):
+        assert tmp_exe or not self.lib.language.compiler, 'You must compile first'
+        cmd_exec = self.lib.language.executer.format(tmp_exe=tmp_exe)
         cmd = f'{cmd_exec} < {sample_in}'
-        p = self._process = MyProcess(cmd, shell=True)
+        p = MyProcess(cmd, shell=True)
         p.run(
-            timeout=self.time_limit,
-            max_stdout=self.max_output,
+            timeout=self.limits.time_limit,
+            max_stdout=self.limits.max_output,
             live_stdout=self.UI if verbose else None,
             capture_stdout=True,
             capture_stderr=True,
@@ -233,7 +259,7 @@ class CPCP():
             self.UI.print(error)
         elif verbose and not p.stdout:
             self.UI.print('\nWarning: Your program printed nothing!\n')
-        if self.time_limit!=None and p.elapsed >= self.time_limit:
+        if self.limits.time_limit!=None and p.elapsed >= self.limits.time_limit:
             veredict = 'TL'
         elif error:
             veredict = 'RE'
@@ -247,47 +273,49 @@ class CPCP():
 
     @_interruptable
     def run(self, inputs, summary=False):
+        language = self.lib.problem.language
         if not inputs:
             return self.UI.print('No input files found. Use the downlad tool or the new testcase tool.')
-        with NamedTemporaryFile() as program:
-            tmp_program = program.name
+        with NamedTemporaryFile() as exe:
+            tmp_exe = exe.name
         try:
-            cmdc = self.format(self.compiler, tmp_program=tmp_program)
+            cmdc = self.lib.language.compiler.format(tmp_exe=tmp_exe)
+            cmdx = self.lib.language.executer.format(tmp_exe=tmp_exe)
+            self.UI.print(f'Compiling...\n  {cmdc}')
             try:
-                self._process=MyProcess(cmdc, shell=True).run(check=True)
-            except Exception as e:
-                print(e)
-                self.UI.print(f'\nCompilation failed ({self.language}).\n   Command: {cmdc}')
+                MyProcess(cmdc, shell=True).run(
+                    check=True, live_stderr=self.UI,
+                    live_stdout=self.UI)
+            except:
+                self.UI.print(f'\nCompilation failed. Command used:')
+                self.UI.print(f'    {cmdc}')
                 return
-            self.UI.print(f'Compilation ok ({self.language}): {cmdc}')
-
-            cmdx = self.format(self.executer, tmp_program=tmp_program)
-            self.UI.print(f'Execution line ({self.language}): {cmdx}')
+            self.UI.print(f'Running... (ctrl+c to interrupt)\n  {cmdx}')
+            self.UI.print()
             if summary:
-                self.UI.print()
                 self.UI.print('Execution summary:')
                 self.UI.print('    Judgements:')
             else:
                 self.UI.print('-'*20)
 
-            fmt = self.config.sample
-            fmt_in = fmt.replace('{in_or_out}', 'in')
-            fmt_in = fmt_in.replace('{num}', r'(?P<num>\d+)')
+            sample_io = self.lib.problem.sample_io
+            fmt_in = sample_io.format(io_ext='in',
+                io_num=r'(?P<num>\d+)')
             regex = re.compile(fmt_in)
             total_time = 0
             for sample_in in inputs:
                 m = regex.fullmatch(sample_in)
                 if m:
                     num = m.groupdict().get('num')
-                    sample_out = fmt.format(num=num, in_or_out='out')
+                    sample_out = sample_io.format(
+                        io_num=num, io_ext='out')
                 else:
                     sample_out = sample_in[:-3]+'.out'
                 if not summary:
                     self.UI.print(f'Input: {sample_in}')
-                    self.UI.print(f'Expected output: {sample_out}')
                 veredict, exec_time = self.execute(
                     sample_in, sample_out,
-                    tmp_program=tmp_program,
+                    tmp_exe=tmp_exe,
                     verbose=not summary,
                 )
                 total_time += exec_time
@@ -299,27 +327,29 @@ class CPCP():
             if summary:
                 self.UI.print(f'    Total time:  {total_time:.2f} s')
         finally:
-            if os.path.exists(tmp_program):
-                MyProcess(['rm', tmp_program]).run()
+            if os.path.exists(tmp_exe):
+                MyProcess(['rm', tmp_exe]).run()
         return
 
     def quit(self):
-        sys.exit(0)
+        interrupt_main()
 
     def ls_update(self):
         ls = {}
         for ext in ['in', 'out']:
             files = glob.glob(f'{self.lib.problem.dir}/*.{ext}')
-            empty = [f for f in files if not read_file(f).strip()]
+            empty = [f for f in files if os.path.getsize(f)==0]
             files = [f for f in files if f not in empty]
-            files = sorted(files, key=lambda f: ('sample' not in f, my_order(f)))
+            files = sorted(files, key=lambda f:
+                ('sample' not in f, split_numbers(f)))
             ls[ext] = files
             ls[ext+'_empty'] = empty
         self.ls = ls
         return
 
-    def ls_print(self):
-        self.UI.clear()
+    def ls_print(self, clear=True):
+        if clear:
+            self.UI.clear()
         if any(v for k,v in self.ls.items()):
             self.UI.print('\nInput/output files and possible actions:\n')
             for x in self.ls['in']:
@@ -341,31 +371,11 @@ class CPCP():
             else: self.UI.print('ok')
         self.UI.print('Done')
 
-    def create_source(self, overwrite=False):
-        self.create_path()
-        source = self.lib.problem.source
-        template = self.lib.template
-        self.UI.print(f'Creating {source} from template:')
-        if os.path.exists(source):
-            self.UI.print('    Skipping. File already exists.')
-        elif os.path.exists(template):
-            self.UI.print(f'    Copying {template}')
-            MyProcess(['cp', template, source]).run()
-            self.UI.print('Done')
-        else:
-            self.UI.print(f'    Setting empty file: template not found {template}')
-            MyProcess(['touch', source]).run()
-        return
-
-    async def open_templates(self):
-        fmt = self.settings.dirtree['template']
-        self.UI.print(f'\nTemplates use the format "{fmt}"')
-        self.UI.print('\nYour languages and extensions:')
-        for x in self.settings.languages.values():
-            self.UI.print('   + .{extension:6s} {language}'.format(**x))
-        await self.UI.alert('You will access the templates folder. Read below for info on new templates.')
-        self.create_path(self.config.templates_path)
-        self.xdg_open(self.config.templates_path)
+    def open_templates(self):
+        self.UI.print(f'\nName your templates properly! (see settings)')
+        self.UI.alert('You will access the templates folder.')
+        mkdir(self.lib.templates_dir)
+        sys_open(self.lib.templates_dir)
 
     @_interruptable
     def download(self):
@@ -373,23 +383,23 @@ class CPCP():
             self.UI, self.lib.problem,
             self.lib.platform)
 
-    async def new_testcase(self):
-        fmt_in = self.config.custom.replace('{in_or_out}', 'in')
-        fmt_out = self.config.custom.replace('{in_or_out}', 'out')
+    def new_testcase(self):
+        custom_io = self.lib.problem.custom_io
         def exists(i):
-            fmt = self.config.custom
-            ein = os.path.exists(fmt_in.format(num=i))
-            eout = os.path.exists(fmt_out.format(num=i))
-            return ein and eout
+            for ext in 'in out'.split():
+                f = custom_io.format(io_num=i, io_ext=ext)   
+                if not os.path.exists(f):
+                    return False
+            return True
         i = next(i for i in range(1, 10**5) if not exists(i))
-        fname = fmt_in.format(num=i)
-        if await self.UI.ask_bool(f'Opening {fname}. Ok?'):
+        fname = custom_io.format(io_num=i, io_ext='in')
+        if self.UI.confirm(f'Opening {fname}. Ok?'):
             self.UI.print(f'Creating {fname}')
-            self.xdg_open(fname, touch=True)
-        fname = fmt_out.format(num=i)
-        if await self.UI.ask_bool(f'Opening {fname}. Ok?'):
+            sys_open(fname, create=True)
+        fname = custom_io.format(io_num=i, io_ext='out')
+        if self.UI.confirm(f'Opening {fname}. Ok?'):
             self.UI.print(f'Creating {fname}')
-            self.xdg_open(fname, touch=True)
+            sys_open(fname, create=True)
         return
 
     def create_path(self, path=None):
@@ -499,10 +509,10 @@ TODO:
  (OK) Open templates
  (OK) Make UI non async and blocking
  (OK) Plugin system (move everything to a cpcp folder)
- + Updates system
- + Autodestroy old versions
- + Reorganize Problem attributes
- + Fix long labels
+ (OK) Updates system
+ (OK) Autodestroy old versions
+ (OK) Reorganize Problem attributes
+ (OK) Fix long labels (not supported)
  + let cpp match c++
  + Darker theme (or selectable)
  + Fix options spacing

@@ -11,7 +11,11 @@ class Downloader:
         self._reimport('fallback')
 
     def download(self, UI, problem, platform):
-        self._reimport(platform.name)
+        try:
+            self._reimport(platform.name)
+        except FileNotFoundError:
+            pass
+        
         if platform.name in self.plugins:
             tool = platform.name
         else:

@@ -199,7 +199,7 @@ class MyApp(flx.PyComponent):
             action(*args, **kwargs)
         return
 
-    def prompt(self, message, options,
+    def choice(self, message, options,
             placeholder='', prefill='', n_options=5):
         tab = dict(
             options=options,
@@ -216,28 +216,19 @@ class MyApp(flx.PyComponent):
         ans = self.prompts.results.pop(ref)
         return ans
 
-    def prompt_bool(self, message, default=True):
-        options = ['Yes', 'No'] if default==True else ['No', 'Yes']
-        ans = self.prompt(message=message, options=options)
-        return {'Yes':True, 'No':False}.get(ans)
-
-    async def ask_bool(self, message, default=True, **kwargs):
-        options = ['Yes', 'No'] if default==True else ['No', 'Yes']
-        ans = await self.ask_multiple(
-            message=message,
-            options=options,
-            **kwargs,
-        )
-        return ans=='Yes'
-
-    async def alert(self, message):
-        await self.ask_multiple(message=message, options=['OK'])
+    def alert(self, message):
+        self.choice(message=message, options=['OK'])
         return
 
-    def get_input(self, message, validator=None, **kwargs):
+    def confirm(self, message, default=True):
+        options = ['Yes', 'No'] if default==True else ['No', 'Yes']
+        ans = self.choice(message=message, options=options)
+        return {'Yes':True, 'No':False}.get(ans)
+
+    def prompt(self, message, validator=None, **kwargs):
         error = ':)'
         while error:
-            ans = self.prompt(
+            ans = self.choice(
                 message=message,
                 options=[], **kwargs,
             )

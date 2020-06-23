@@ -1,12 +1,24 @@
-import os
+import subprocess, os, platform
 
-def download(UI, **kwargs):
-    #print(kwargs) # For development/debugging
-    platform = kwargs['platform']
-    fmt_in = kwargs['fmt_in']
-    fmt_out = kwargs['fmt_out']
-    statement = kwargs['statement']
-    url = kwargs.get('url')
+def sys_open(filepath):
+    if not os.path.exists(filepath):
+        with open(filepath,'w'):
+            pass
+    if platform.system() == 'Darwin':
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':
+        os.startfile(filepath)
+    else: # Linux
+        subprocess.call(('xdg-open', filepath))
+    return
+
+
+def download(UI, problem, platform):
+    #UI.print(problem) # For development/debugging
+    #UI.print(platform) # For development/debugging
+    sample_io = problem.sample_io
+    statement = problem.statement
+    url = platform.get('url')
 
     # Get url
     if url==None:
@@ -37,25 +49,20 @@ def download(UI, **kwargs):
         f.write(html_stmt.format(url=url))
 
     # Save samples
-    UI.print('URL:', url)
-
-    UI.print(f'\n    No download script found for {platform}'
-        f'    I will help you to copy/paste the test cases manually.\n')
-
-    if not UI.prompt_bool('You will assist the parsing. OK?'):
+    if not UI.confirm('You will assist the parsing. OK?'):
         return
-    if UI.prompt_bool(f'    Open statement?'):
-        xdg_open(statement)
+    if UI.confirm(f'    Open statement?'):
+        sys_open(statement)
     num=1
     while 1:
-        fname = fmt_in.format(num=num)
-        if UI.prompt_bool(f'Testcase {num}. Open {fname}?.'):
-            xdg_open(fname, touch=True)
+        fname = sample_io.format(io_num=num, io_ext='in')
+        if UI.confirm(f'Testcase {num}. Open {fname}?.'):
+            sys_open(fname)
         else:
             break
-        fname = fmt_out.format(num=num)
-        if UI.prompt_bool(f'Testcase {num}. Open {fname}?'):
-            xdg_open(fname, touch=True)
+        fname = sample_io.format(io_num=num, io_ext='out')
+        if UI.confirm(f'Testcase {num}. Open {fname}?'):
+            sys_open(fname)
         else:
             break
         num+=1

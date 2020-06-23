@@ -1,6 +1,7 @@
 from tempfile import TemporaryDirectory
 import re, json, shutil, os
 from subprocess import run
+import subprocess, os, platform
 
 
 def read_file(fname):
@@ -36,4 +37,16 @@ def mkdir(*path):
     if not os.path.exists(path):
         run(['mkdir', '-p', path], check=True)
     assert os.path.isdir(path)
+    return
+
+def sys_open(filepath, create=False):
+    if create and not os.path.exists(filepath):
+        with open(filepath,'w'):
+            pass
+    if platform.system() == 'Darwin':
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':
+        os.startfile(filepath)
+    else: # Linux
+        subprocess.call(('xdg-open', filepath))
     return
